@@ -10,6 +10,16 @@ Stabilizing Error Order resolution (Inline edit, ID Fixes) and enforcing Query P
 
 ## Recent Changes
 
+- **Split Sales Invoice by Stock Transfer Date (2026-02-07)**:
+  - **Problem**: Sales Invoices were being created with the Order Date, mismatching the actual valid Date (warehouse export date) needed for accounting.
+  - **Solution**:
+    - **Refactored `NormalOrderHandlerService`**:
+      - **Sales Order**: Still created once per order with original `docDate`.
+      - **Sales Invoice**: Split into multiple invoices based on `transDate` (Stock Transfer Date).
+      - **DocCode**: Appends suffix `-1`, `-2` etc. if split occurs.
+      - **Payment**: Linked to the first created invoice.
+  - **Files Modified**: `normal-order-handler.service.ts`.
+
 - **Sale Return Fallback Logic (2026-02-04)**:
   - **Problem**: `handleSaleOrderWithUnderscoreX` crashed when looking up `docCodeWithoutX` if the original order didn't exist (threw NotFoundException).
   - **Solution**: Wrapped the lookup in a try-catch block. If the "Without X" lookup fails, it now attempts to look up the order using the original `docCode` (with `_X`) as a fallback.

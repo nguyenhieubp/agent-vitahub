@@ -41,12 +41,20 @@ The Sales Module is responsible for:
 - **Purpose**: Handles standard retail/wholesale orders.
 - **Steps**:
   1.  **Sync Customer**: `createOrUpdateCustomer`.
-  2.  **Build Payload**: Calls `SalesPayloadService.buildFastApiInvoiceData`.
-  3.  **Create Sales Order**: Sends `salesOrder` to FAST.
-  4.  **Create Sales Invoice**: Sends `salesInvoice` to FAST.
-  5.  **Sync Payment**:
-      - Syncs Cashio (Payment Methods).
-      - Syncs Stock Payments (if applicable).
+  2.  **Enrichment**:
+      - Explodes Sales Lines based on Stock Transfers.
+      - Fetches Card Data from N8n (for "Tách Thẻ").
+  3.  **Sales Order (Unified)**:
+      - Creates **ONE** Sales Order for the entire order using original `docDate`.
+      - This ensures the order is recorded as a single entity in Fast API.
+  4.  **Sales Invoice (Split by Date)**:
+      - Groups sales lines by **Stock Transfer Date** (`transDate`).
+      - Creates **MULTIPLE** Sales Invoices if dates differ:
+        - `docCode` suffix: `-1`, `-2`, etc. (if split).
+        - `ngay_ct`, `ngay_lct`: Set to the specific `transDate` of that group.
+      - This ensures accounting records match the actual warehouse export dates.
+  5.  **Payment Sync**:
+      - Links all payments (Cashio & Stock) to the **FIRST** successfully created Sales Invoice `docCode`.
 
 ### 2.4 SalesPayloadService (`sales-payload.service.ts`)
 
