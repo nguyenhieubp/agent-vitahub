@@ -2,11 +2,11 @@
 
 ## Current Focus
 
-Stabilizing Error Order resolution (Inline edit, ID Fixes) and enforcing Query Performance limits.
+Sales API Query Optimization & Invoice Flow Deferred Delivery Handling.
 
-- Enabling direct correction of "Missing Material/Branch" errors via frontend inline edit.
-- Enforcing mandatory date ranges for heavy queries (e.g. `getStatusAsys`) to prevent performance degradation.
-- Ensuring validation rules cover all business cases (e.g. "Xuất hàng KM cho đại lý").
+- Optimized `/sales/v2` query performance by conditionally skipping date filters when searching by specific order code.
+- Fixed frontend runtime error in warehouse statistics page with optional chaining.
+- Implemented filtering logic to exclude items without warehouse code (`ma_kho`) from Sales Invoice payload to handle deferred delivery items.
 
 ## Recent Changes
 
@@ -19,6 +19,30 @@ Stabilizing Error Order resolution (Inline edit, ID Fixes) and enforcing Query P
       - **DocCode**: Appends suffix `-1`, `-2` etc. if split occurs.
       - **Payment**: Linked to the first created invoice.
   - **Files Modified**: `normal-order-handler.service.ts`.
+- **Sales Query Optimization (2026-02-09)**:
+  - **Problem**: Query was slow when using LEFT JOIN with `OR st_filter.id IS NULL` conditions for date filtering. Search by specific order code was also slow due to unnecessary stock transfer joins.
+  - **Solution**: 
+    - Skip date filtering entirely when `search` parameter is provided (searching for specific order).
+    - Use INNER JOIN with stock transfers only when date filtering is needed (no search parameter).
+    - This allows fast retrieval of ALL items (including those without stock transfers) when searching by docCode.
+  - **Files Modified**: `sales-query.service.ts` (Lines 1014-1080)
+
+- **Frontend Warehouse Statistics Error Fix (2026-02-09)**:
+  - **Problem**: `TypeError: Cannot read properties of undefined (reading 'toLocaleString')` when accessing `statistics.byIoType.T`.
+  - **Solution**: Added optional chaining (`?.`) and default values (`|| 0`) for all `byIoType` properties (I, O, T).
+  - **Files Modified**: `warehouse-statistics/page.tsx` (Lines 782, 800, 818)
+
+- **Deferred Delivery Items Handling (2026-02-09)**:
+  - **Problem**: Orders with mixed items (some shipped, some deferred) failed validation when creating Sales Invoice because deferred items lack `ma_kho` (warehouse code).
+  - **Business Context**:
+    - **Deferred items**: Products not yet in stock, will be shipped later (no stock transfer yet, no `ma_kho`).
+    - **Cancelled orders** (with `_X` suffix): Never have stock transfers, allowed to create invoice without `ma_kho`.
+  - **Solution**: Filter out items without `ma_kho` when building Sales Invoice payload. Only items with warehouse codes are sent to Fast API.
+  - **Result**: 
+    - Day 1: Create invoice for shipped items only.
+    - Day 2+: Create separate invoice(s) when deferred items are shipped.
+    - One order can result in multiple invoices based on ship dates.
+  - **Files Modified**: `fast-api-payload.helper.ts` (Lines 73-102)
 
 - **Sale Return Fallback Logic (2026-02-04)**:
   - **Problem**: `handleSaleOrderWithUnderscoreX` crashed when looking up `docCodeWithoutX` if the original order didn't exist (threw NotFoundException).
