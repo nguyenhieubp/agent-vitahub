@@ -1,5 +1,23 @@
 # Decision Log
 
+## [2026-02-09] Centralize Discount Logic (ma_ck11)
+
+### Context
+
+Fast API payload was missing `ma_ck11` while Frontend API had it (hardcoded). Logic was duplicated and inconsistent.
+
+### Decision
+
+1.  **Unified Helper**: Create `InvoiceLogicUtils.resolveMaCk11` as Single Source of Truth.
+2.  **Refactor**: Update both `SalesQueryService` and `SalesPayloadService` to use this helper.
+
+### Rationale
+
+- **Consistency**: Ensure consistency between UI and Backend Payload.
+- **Maintainability**: Single place to update brand mappings (e.g., adding `F3`, `CHANDO`).
+
+---
+
 ## [2026-02-04] Fallback Lookup for Sale Return Orders
 
 ### Context

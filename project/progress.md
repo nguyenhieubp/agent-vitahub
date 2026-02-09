@@ -2,6 +2,16 @@
 
 ## Milestones
 
+### [Completed] Refactor Discount Logic & ma_ck11 (2026-02-09)
+
+- **Goal**: Fix missing `ma_ck11` in Fast API payload and unify logic.
+- **Solution**:
+  - Created `InvoiceLogicUtils.resolveMaCk11` as single source of truth.
+  - Updated `InvoiceLogicUtils.mapDiscountFields` to populate `ma_ck11` in payload.
+  - Updated `SalesQueryService` to use the same helper for GET API.
+- **Status**: Deployed.
+- **Files Modified**: `invoice-logic.utils.ts`, `sales-query.service.ts`.
+
 ### [Completed] Sale Return Order Lookup Fallback (2026-02-04)
 
 - **Goal**: Prevent application crash when processing `_X` orders if the original order cannot be found.

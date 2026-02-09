@@ -124,3 +124,9 @@ The Sales Module is responsible for:
 - **`CategoriesService`**: Manages category data with in-memory caching.
 - **`N8nService`**: Handles external webhooks (e.g., card data).
 - **`SalesUtils` / `InvoiceLogicUtils`**: Shared pure functions. `InvoiceLogicUtils` is now the **sole authority** for core business math (prices, accounts, promotion logic).
+
+### 2.8 Discount & Promotion Logic (InvoiceLogicUtils)
+
+- **Centralization**: All discount code resolution is centralized in `InvoiceLogicUtils`.
+- **`resolveMaCk11`**: Determines `ma_ck11` (E-Wallet Discount) based on Brand and Product Type (e.g., `MN CKVIP SP`, `BTH CKVIP DV`).
+- **`mapDiscountFields`**: Maps all `ck01`...`ck22` fields for the Fast API payload, sourcing data from the centralized logic.
