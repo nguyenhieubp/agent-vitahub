@@ -2,6 +2,45 @@
 
 ## Milestones
 
+### [Completed] Duplicate ma_ck11 Logic Fix (2026-02-10)
+
+- **Goal**: Ensure `ma_ck11` only appears on lines that actually used Ecoin payment.
+- **Problem**: Logic used global payment amount for all lines, duplicating discounts.
+- **Solution**: Switched to using item-level `paid_by_voucher...` field as source of truth.
+- **Status**: Deployed.
+- **Files Modified**: `invoice-logic.utils.ts`.
+
+### [Completed] Update ma_ck11 Mapping Codes (2026-02-10)
+
+- **Goal**: Update Ecoin mapping codes per brand request.
+- **Solution**: Replaced complex product-type logic with direct Brand mapping.
+- **Status**: Deployed.
+- **Files Modified**: `invoice-logic.utils.ts`.
+
+### [Completed] Fix maKho for Return Orders (2026-02-10)
+
+- **Goal**: Resolve missing `maKho` in Sales API for Return orders.
+- **Problem**: ST map lookup failed for RT doc codes; Return transfers ignored.
+- **Solution**: Enhanced ST matching and `maKho` resolution logic.
+- **Status**: Deployed.
+- **Files Modified**: `sales-query.service.ts`.
+
+### [Completed] Missing ck01_nt Fix (2026-02-10)
+
+- **Goal**: Restore `ck01_nt` values.
+- **Problem**: `disc_ctkm` defaulted to 0, preventing fallback to `chietKhauMuaHangGiamGia`.
+- **Solution**: Updated fallback logic in `InvoiceLogicUtils`.
+- **Status**: Deployed.
+- **Files Modified**: `invoice-logic.utils.ts`.
+
+### [Completed] Customer Sync Brand Logic Fix (2026-02-10)
+
+- **Goal**: Ensure `brand` is passed to `createOrUpdateCustomer` so N8n lookup works.
+- **Problem**: Internal sync in `createSalesOrder` only passed `ma_kh`/`ten_kh`. `executeFullInvoiceFlow` missed the explicit sync step entirely.
+- **Solution**: Updated both methods to pass full customer data (`brand`, `tel`, `address`, `email`, etc.).
+- **Status**: Deployed.
+- **Files Modified**: `fast-api-invoice-flow.service.ts`.
+
 ### [In Progress] Sales API Deep Performance Optimization (2026-02-10)
 
 - **Goal**: Reduce `findAllOrders` response time from 30-60s+ to <3s for 1-month date range queries.

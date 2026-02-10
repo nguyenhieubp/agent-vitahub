@@ -12,6 +12,36 @@ Sales API Performance Optimization — `findAllOrders` response time reduction.
 
 ## Recent Changes
 
+- **Duplicate ma_ck11 Logic Fix (2026-02-10)**:
+  - **Problem**: `ma_ck11` (and `ck11_nt`) appeared on all lines with the global payment amount (79M) even when `paid_by_voucher` was 0 for some lines.
+  - **Solution**: Updated `InvoiceLogicUtils.calculateInvoiceAmounts` to prioritize item-level distributed amount (`paid_by_voucher...`) over global `cashioData.total_in`.
+  - **Files Modified**: `invoice-logic.utils.ts`.
+
+- **Missing ck01_nt Fix (2026-02-10)**:
+  - **Problem**: `ck01_nt` became 0 because `disc_ctkm` defaulted to 0, blocking fallback to `chietKhauMuaHangGiamGia`.
+  - **Solution**: Updated `InvoiceLogicUtils.resolveChietKhauMuaHangGiamGia` to treat 0 as "not set" and fallback.
+  - **Files Modified**: `invoice-logic.utils.ts`.
+
+- **Update ma_ck11 Codes (2026-02-10)**:
+  - **Change**: Updated Ecoin mapping codes per brand request:
+    - FACIALBAR -> `FBV.TKECOIN`
+    - LABHAIR -> `LHVTT.VCDV`
+    - MENARD -> `MN.TKDV`
+    - YAMAN -> `''`
+  - **Files Modified**: `invoice-logic.utils.ts`.
+
+- **Fix maKho for Return Orders (2026-02-10)**:
+  - **Problem**: `maKho` was missing because ST map didn't link RT->SO and ignored Return (Input) transfers.
+  - **Solution**: Updated `SalesQueryService` to expand `saleItemKeys` with SO codes and use `assignedRt` for `maKho`.
+  - **Files Modified**: `sales-query.service.ts`.
+
+- **Customer Sync Brand Logic Fix (2026-02-10)**:
+  - **Problem**: `createSalesOrder` internal sync and `executeFullInvoiceFlow` were missing `brand` (and other fields), causing N8n lookup to fail and incomplete customer data in Fast API.
+  - **Solution**:
+    - Updated `createSalesOrder` to pass complete customer object (`brand`, `tel`, etc.) to `createOrUpdateCustomer`.
+    - Restored the explicit `createOrUpdateCustomer` call (Step 1) in `executeFullInvoiceFlow`.
+  - **Files Modified**: `fast-api-invoice-flow.service.ts`.
+
 - **Sales API Deep Performance Optimization (2026-02-10)**:
   - **Problem**: `findAllOrders` took 30-60s+ for 1-month date range queries due to:
     1. Redundant calls to `enrichOrdersWithCashio` (called twice — pre- and post-explosion)
