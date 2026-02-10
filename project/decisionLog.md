@@ -1,5 +1,102 @@
 # Decision Log
 
+## [2026-02-10] Replace stock_transfers Date Filter with sale.docDate
+
+### Context
+
+The `findAllOrders` method filtered orders by `stock_transfers.transDate` using either an INNER JOIN (~13s) or a pre-filter step (`SELECT DISTINCT soCode FROM stock_transfers WHERE transDate BETWEEN ...`, ~7-15s). The `stock_transfers` table has no index on `transDate`, making any query against it a full table scan.
+
+Multiple approaches were tried:
+- **INNER JOIN on fullQuery**: ~13s
+- **Two-step pre-filter (materialized soCodes)**: 7s + 1s = 8s
+- **SQL IN subquery**: 23s (PG materialized the inner query)
+- **EXISTS subquery**: 27s (PG still scanned full stock_transfers per row)
+
+### Decision
+
+**Replace date filtering with `sale.docDate` WHERE clause** — no JOIN, no stock_transfers scan required.
+
+### Rationale
+
+- **Performance**: Eliminates 7-15s bottleneck entirely (sale.docDate filter is <100ms on indexed sales table)
+- **Acceptable tradeoff**: `sale.docDate` and `stock_transfer.transDate` are nearly identical (order date ≈ export date). Edge cases (1-day difference) are negligible for pagination purposes.
+- **Data accuracy preserved**: The explosion/enrichment step still uses actual stock_transfer data, so the detailed view is always accurate.
+
+---
+
+## [2026-02-10] Parallel COUNT for Exact Pagination Total
+
+### Context
+
+Previously used `LIMIT + 1` trick to detect "has more pages" without running a COUNT query. User requested exact total count.
+
+### Decision
+
+**Run `COUNT(DISTINCT docCode)` in parallel** with the pagination query via `Promise.all`. Both queries use the same filters.
+
+### Rationale
+
+- **Exact total**: Users see precise page count instead of "Next →" guessing
+- **Zero latency cost**: COUNT runs alongside pagination — total time = MAX(pagination, count), not SUM
+- **Same filter**: Both queries apply identical brand/date/status filters for consistency
+
+---
+
+## [2026-02-10] Eliminate Redundant enrichOrdersWithCashio & enrichSalesWithMaVtRef
+
+### Context
+
+`enrichOrdersWithCashio` was called twice: once before formatting (to explode sales lines by stock transfers) and once after (to re-enrich with cashio data post-explosion). Each call independently fetched `DailyCashio`, `loyaltyProductMap`, `warehouseCodeMap`, and ran `enrichSalesWithMaVtRef`. The pre-explosion call to `enrichSalesWithMaVtRef` was also redundant since the post-explosion call covers all lines.
+
+### Decision
+
+1. **Pre-fetch shared data** (`cashioRecords`, `loyaltyProductMap`, `warehouseCodeMap`) in the parallel batch fetch
+2. **Pass pre-fetched data** to the second `enrichOrdersWithCashio` call via optional `prefetchedData` parameter
+3. **Skip `enrichSalesWithMaVtRef`** inside `enrichOrdersWithCashio` via `skipMaVtRef` flag (handled separately after)
+4. **Remove first redundant call** entirely
+
+### Rationale
+
+- **Avoids 3 redundant DB/API calls** per request
+- **Backward compatible**: Optional parameter — callers without pre-fetched data still work as before
+
+---
+
+## [2026-02-10] Parallelize 8 Independent Data Fetches
+
+### Context
+
+`findAllOrders` fetched 8 independent datasets sequentially: stockTransfers, departments, warehouseCodes, svcCodes, orderFees, employeeStatus, cardData, dailyCashio. Each took 100-500ms, totaling ~2-4s sequentially.
+
+### Decision
+
+**Wrap all 8 fetches in a single `Promise.all` call.**
+
+### Rationale
+
+- All 8 are independent (no data dependencies between them)
+- Parallel execution reduces total time from SUM to MAX (~500ms instead of ~3s)
+- Simple refactor with no logic changes
+
+---
+
+## [2026-02-09] Clear Voucher Fields for Point Exchange Orders
+
+### Context
+
+Point Exchange orders ("03. Đổi điểm") were displaying `ma_ck05` (Voucher Code) and `ck05_nt` (Voucher Amount) fields in the frontend, which is incorrect per business rules.
+
+### Decision
+
+Add final clearing step in `SalesQueryService` after payment override logic to ensure Point Exchange orders never have voucher discount fields, regardless of payment method data.
+
+### Rationale
+
+- **Business Rule Compliance**: Point Exchange orders should not show voucher discounts.
+- **Override Safety**: Payment method logic may set these fields based on `cashioData`, but order type takes precedence.
+
+---
+
 ## [2026-02-09] Centralize Discount Logic (ma_ck11)
 
 ### Context

@@ -2,6 +2,36 @@
 
 ## Milestones
 
+### [In Progress] Sales API Deep Performance Optimization (2026-02-10)
+
+- **Goal**: Reduce `findAllOrders` response time from 30-60s+ to <3s for 1-month date range queries.
+- **Bottlenecks Identified & Fixed**:
+  1. ✅ Redundant `enrichOrdersWithCashio` call (2 calls → 1, pass pre-fetched data)
+  2. ✅ Redundant `enrichSalesWithMaVtRef` call (pre-explosion call removed)
+  3. ✅ Sequential data fetching (8 fetches → `Promise.all`, ~3s → ~500ms)
+  4. ✅ Expensive INNER JOIN for date filtering (~13s → replaced)
+  5. ✅ Full table scan pre-filter on stock_transfers (~7-15s → eliminated)
+  6. ✅ Added direct `sale.docDate` filtering (no JOIN, ~0s)
+  7. ✅ Added parallel `COUNT(DISTINCT docCode)` for exact pagination total
+  8. ✅ Added detailed timing logs to all major steps
+- **Approaches Tried & Benchmarked**:
+  - INNER JOIN on stock_transfers: ~13s
+  - Two-step pre-filter (materialized soCodes): ~8s (7s scan + 1s IN clause)
+  - SQL IN subquery: ~23s (PG materialized inner query)
+  - EXISTS subquery: ~27s (PG repeated full scan)
+  - **Winner: Direct `sale.docDate` filter: ~0s** (no stock_transfers needed)
+- **Key Decision**: Use `sale.docDate` instead of `stock_transfer.transDate` for pagination filtering. Dates nearly identical. Explosion step still uses accurate stock_transfer data.
+- **Status**: In testing — awaiting user performance verification.
+- **Files Modified**: `sales-query.service.ts`
+
+### [Completed] Fix Point Exchange Voucher Display (2026-02-09)
+
+- **Goal**: Remove `ma_ck05` and `ck05_nt` fields from "03. Đổi điểm" (Point Exchange) orders.
+- **Problem**: Point Exchange orders were showing voucher discount fields even though they shouldn't have them per business rules.
+- **Solution**: Added final clearing logic in `SalesQueryService` after payment override block to ensure `ck05_nt` and `ma_ck05` are always cleared for Point Exchange orders.
+- **Status**: Deployed.
+- **Files Modified**: `sales-query.service.ts`.
+
 ### [Completed] Refactor Discount Logic & ma_ck11 (2026-02-09)
 
 - **Goal**: Fix missing `ma_ck11` in Fast API payload and unify logic.

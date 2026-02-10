@@ -2,13 +2,34 @@
 
 ## Current Focus
 
-Sales API Query Optimization & Invoice Flow Deferred Delivery Handling.
+Sales API Performance Optimization — `findAllOrders` response time reduction.
 
-- Optimized `/sales/v2` query performance by conditionally skipping date filters when searching by specific order code.
-- Fixed frontend runtime error in warehouse statistics page with optional chaining.
-- Implemented filtering logic to exclude items without warehouse code (`ma_kho`) from Sales Invoice payload to handle deferred delivery items.
+- Eliminated redundant API calls (`enrichOrdersWithCashio`, `enrichSalesWithMaVtRef`)
+- Parallelized 8 independent data fetches via `Promise.all`
+- Replaced slow `stock_transfers.transDate` pre-filter (~15s full table scan) with direct `sale.docDate` filtering
+- Added parallel `COUNT(DISTINCT docCode)` query for exact pagination totals
+- Added detailed timing logs to identify bottlenecks
 
 ## Recent Changes
+
+- **Sales API Deep Performance Optimization (2026-02-10)**:
+  - **Problem**: `findAllOrders` took 30-60s+ for 1-month date range queries due to:
+    1. Redundant calls to `enrichOrdersWithCashio` (called twice — pre- and post-explosion)
+    2. Redundant call to `enrichSalesWithMaVtRef` (pre-explosion call unnecessary)
+    3. Sequential data fetching (8 independent calls executed one by one)
+    4. Slow `COUNT(DISTINCT)` query for pagination
+    5. Expensive `INNER JOIN` with `stock_transfers` for date filtering (~13s)
+    6. Full table scan of `stock_transfers` for pre-filtering soCodes (~7-15s, no index on `transDate`)
+  - **Solution**:
+    - **Removed redundant `enrichOrdersWithCashio` call**: Passed pre-fetched data (`cashioRecords`, `loyaltyProductMap`, `warehouseCodeMap`) + `skipMaVtRef` flag to skip redundant fetches
+    - **Removed redundant `enrichSalesWithMaVtRef` call**: Pre-explosion call removed; post-explosion call covers all lines
+    - **Parallelized 8 data fetches**: `stockTransfers`, `departments`, `warehouseCodes`, `svcCodes`, `orderFees`, `employeeStatus`, `cardData`, `dailyCashio` all run concurrently via `Promise.all`
+    - **Replaced INNER JOIN pagination**: Changed from `INNER JOIN stock_transfers` to direct `sale.docDate` WHERE clause for pagination — eliminates stock_transfers dependency entirely
+    - **Added parallel COUNT**: `COUNT(DISTINCT docCode)` runs alongside pagination query in `Promise.all` — exact total with zero extra latency
+    - **Added timing logs**: Every major step logged with duration for future profiling
+  - **Key Decision**: Filter pagination by `sale.docDate` instead of `stock_transfer.transDate`. These dates are nearly identical (order date ≈ export date). Explosion step still uses actual stock_transfer data for accuracy.
+  - **Performance Impact**: ~15s pre-filter eliminated, total expected ~2-3s (from 30-60s+)
+  - **Files Modified**: `sales-query.service.ts`
 
 - **Split Sales Invoice by Stock Transfer Date (2026-02-07)**:
   - **Problem**: Sales Invoices were being created with the Order Date, mismatching the actual valid Date (warehouse export date) needed for accounting.

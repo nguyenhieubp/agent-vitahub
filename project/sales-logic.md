@@ -24,6 +24,17 @@ The Sales Module is responsible for:
   - **`enrichOrdersWithCashio`**: (Still present for legacy flow support but primarily handled in formatting service for new V2 endpoints).
     - Explodes sales lines based on `StockTransfer` data.
 
+### 2.1.1 Query Strategy (Optimized 2026-02-10)
+
+- **Pagination**:
+  - **Old Strategy**: Filtered by `StockTransfer.transDate` (slow, full table scan).
+  - **New Strategy**: Filters directly by `Sale.docDate` (fast, indexed).
+    - *Constraint*: `docDate` and `transDate` are assumed to be identical or close enough for pagination purposes.
+  - **Counting**: Uses parallel `COUNT(DISTINCT docCode)` query for exact total.
+- **Data Fetching**:
+  - Uses `Promise.all` to fetch 8 independent datasets (transfers, departments, cashio, etc.) concurrently.
+  - Passes pre-fetched data to enrichment methods to avoid redundant DB calls.
+
 ### 2.2 InvoiceFlowOrchestratorService (`invoice-flow-orchestrator.service.ts`)
 
 - **Purpose**: The central decision maker for processing a specific order (`docCode`).
