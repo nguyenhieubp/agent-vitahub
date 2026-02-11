@@ -12,6 +12,11 @@ Sales API Performance Optimization — `findAllOrders` response time reduction.
 
 ## Recent Changes
 
+- **Revert maKho Logic for Return Orders (2026-02-11)**:
+  - **Problem**: User requested to use standard warehouse mapping (`maKho` derived from `stockCode` via map) instead of overriding with `docCode`.
+  - **Solution**: Removed all `maKho = docCode` overrides. Now `maKho` is derived from matched Stock Transfer (`st.docCode` matched directly with `order.docCode`).
+  - **Files Modified**: `sales-query.service.ts`.
+
 - **Duplicate ma_ck11 Logic Fix (2026-02-10)**:
   - **Problem**: `ma_ck11` (and `ck11_nt`) appeared on all lines with the global payment amount (79M) even when `paid_by_voucher` was 0 for some lines.
   - **Solution**: Updated `InvoiceLogicUtils.calculateInvoiceAmounts` to prioritize item-level distributed amount (`paid_by_voucher...`) over global `cashioData.total_in`.
@@ -77,6 +82,11 @@ Sales API Performance Optimization — `findAllOrders` response time reduction.
     - Use INNER JOIN with stock transfers only when date filtering is needed (no search parameter).
     - This allows fast retrieval of ALL items (including those without stock transfers) when searching by docCode.
   - **Files Modified**: `sales-query.service.ts` (Lines 1014-1080)
+
+- **Update maKho Logic for Return Orders (2026-02-10)**:
+  - **Problem**: Requirement to use `RT...` code as `maKho` for Return Orders.
+  - **Solution**: Added conditional check to set `maKho = docCode` for RT orders.
+  - **Files Modified**: `sales-query.service.ts`. (Lines 1014-1080)
 
 - **Frontend Warehouse Statistics Error Fix (2026-02-09)**:
   - **Problem**: `TypeError: Cannot read properties of undefined (reading 'toLocaleString')` when accessing `statistics.byIoType.T`.
