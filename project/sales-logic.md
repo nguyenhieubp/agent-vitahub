@@ -54,7 +54,7 @@ The Sales Module is responsible for:
   1.  **Sync Customer**: `createOrUpdateCustomer`.
   2.  **Enrichment**:
       - Explodes Sales Lines based on Stock Transfers.
-      - Fetches Card Data from N8n (for "Tách Thẻ").
+      - Fetches Customer Code `custcode` from Zappy API `get_partner_from_svc` for "Tách Thẻ" using the `svc_serial`. (Replaced N8N webhook fetching).
   3.  **Sales Order (Unified)**:
       - Creates **ONE** Sales Order for the entire order using original `docDate`.
       - This ensures the order is recorded as a single entity in Fast API.
