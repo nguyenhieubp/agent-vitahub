@@ -1,5 +1,77 @@
 # Decision Log
 
+## [2026-02-24] Use Query Params (not Body) for DELETE Requests
+
+### Context
+
+DELETE endpoint `DELETE /fast-integration/audit` initially used `@Body()` to receive `{ startDate, endDate, status }`. Axios sends DELETE body via `{ data: ... }` option. In practice, some proxies and HTTP clients strip the body of DELETE requests, causing the backend to receive an empty body and fail validation.
+
+### Decision
+
+**Switch DELETE endpoints that need parameters to use `@Query()` params** (e.g., `DELETE /fast-integration/audit?startDate=2026-01-01&endDate=2026-02-24`).
+
+### Rationale
+
+- **Reliability**: Query params are universally supported for all HTTP methods by all proxies, browsers, and clients.
+- **Axios compatibility**: Axios sends `{ params }` cleanly into URL query string with no body-stripping risk.
+- **REST convention**: While DELETE+body is technically valid per RFC, using query params for filtering criteria on DELETE is cleaner and more universally supported.
+
+---
+
+## [2026-02-24] Use `dh_ngay` (not `created_at`) as Date Field for Audit Log Filtering
+
+### Context
+
+`AuditPo` entity has both `dh_ngay` (order date, from the synced PO document) and `created_at` (system timestamp when log was created). When implementing date filtering for the audit log list and bulk delete, initial implementation used `created_at`.
+
+### Decision
+
+**Use `dh_ngay` as the date filter field** for both `getAuditLogs` and `deleteAuditLogsByDateRange`.
+
+### Rationale
+
+- **Business context**: Users think in terms of "order date" when managing PO sync logs, not system timestamps.
+- **UX consistency**: Same date range used to view logs = same date range used to delete them.
+- **Alignment**: `dh_ngay` is the visible date shown in the audit log table.
+
+---
+
+## [2026-02-24] Lock Platform Per Fee Page (Shopee vs TikTok)
+
+### Context
+
+The initial batch sync modal on `platform-fees/page.tsx` had a dropdown allowing users to choose Shopee / TikTok / All. After adding a separate `tiktok-fees/page.tsx` with its own batch sync modal, having the platform selector on each page became redundant.
+
+### Decision
+
+**Hardcode `platform: "shopee"` on `platform-fees/page.tsx`** and **`platform: "tiktok"` on `tiktok-fees/page.tsx`**. Remove platform selector entirely from both pages.
+
+### Rationale
+
+- **User intent clarity**: Users navigate to the appropriate page for the platform they want to manage.
+- **Reduces error**: Prevents accidental sync of wrong platform's fees.
+- **Simplicity**: Fewer UI controls = less confusion.
+
+---
+
+## [2026-02-24] Extract OrderFeeService from OrderFeeController
+
+### Context
+
+`OrderFeeController` contained the fee fetching logic (merging `ShopeeFee`/`TikTokFee` with import tables and Sales data for invoice dates). `FastIntegrationService` needed the same data for batch sync, but couldn't directly reuse controller logic.
+
+### Decision
+
+**Create `OrderFeeService`** with `findShopeeFees` and `findTikTokFees` methods. `OrderFeeController` delegates to this service. `FastIntegrationModule` imports `OrderFeeModule` to access the service.
+
+### Rationale
+
+- **DRY principle**: Single implementation of fee data fetching logic.
+- **Module boundary**: Services can be shared between modules via exports; controllers cannot.
+- **Testability**: Service logic is independently testable without HTTP context.
+
+---
+
 ## [2026-02-10] Replace stock_transfers Date Filter with sale.docDate
 
 ### Context

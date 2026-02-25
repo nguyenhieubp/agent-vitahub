@@ -2,15 +2,54 @@
 
 ## Current Focus
 
-Sales API Performance Optimization — `findAllOrders` response time reduction.
+Platform Fee Batch Sync & Fast PO Audit Log Management — Backend endpoints and frontend UI for bulk synchronization and log deletion.
 
-- Eliminated redundant API calls (`enrichOrdersWithCashio`, `enrichSalesWithMaVtRef`)
-- Parallelized 8 independent data fetches via `Promise.all`
-- Replaced slow `stock_transfers.transDate` pre-filter (~15s full table scan) with direct `sale.docDate` filtering
-- Added parallel `COUNT(DISTINCT docCode)` query for exact pagination totals
-- Added detailed timing logs to identify bottlenecks
+- Implemented `batchSyncPOCharges` (POST `/fast-integration/po-charges/batch-sync`) for bulk Shopee/TikTok fee sync
+- Implemented `deleteAuditLog` (DELETE `/fast-integration/audit/:id`) and `deleteAuditLogsByDateRange` (DELETE `/fast-integration/audit?startDate=&endDate=&status=`) for audit log management
+- Created `OrderFeeService` to decouple fee fetching logic from controller
+- Added "Tự động chạy" batch sync UI to `platform-fees/page.tsx` (Shopee locked) and `tiktok-fees/page.tsx` (TikTok locked)
+- Added delete-by-date-range modal and status filter to `fast-po/page.tsx`
 
 ## Recent Changes
+
+- **Batch Sync PO Charges — Backend (2026-02-24)**:
+  - **Endpoint**: `POST /fast-integration/po-charges/batch-sync` accepts `{ startDate, endDate, platform? }`.
+  - **Service**: `FastIntegrationService.batchSyncPOCharges` queries `OrderFeeService` for Shopee/TikTok fees within the date range, then loops and calls `syncPOCharges` for each record.
+  - **Fee Config**: `SHOPEE_FEE_CONFIG` and `TIKTOK_FEE_CONFIG` constants define field → Fast API column mapping (e.g., `commissionFee → cp02_nt`).
+  - **Files Modified**: `fast-integration.service.ts`, `fast-integration.controller.ts`, `fast-integration.module.ts`.
+
+- **OrderFeeService Extraction (2026-02-24)**:
+  - **Goal**: Decouple Shopee/TikTok fee data fetching from `OrderFeeController` for reuse by `FastIntegrationService`.
+  - **`findShopeeFees`**: Queries `ShopeeFee`, merges with `PlatformFeeImportShopee` (for `shippingFeeSaver`, `marketingFee`, `affiliateFee`), and enriches with `invoiceDate` from `Sale`.
+  - **`findTikTokFees`**: Queries TikTok fee table, merges with `PlatformFeeImportTiktok`.
+  - **Module**: `OrderFeeModule` exports `OrderFeeService`; `FastIntegrationModule` imports `OrderFeeModule`.
+  - **Files Created**: `order-fee.service.ts`, updated `order-fee.module.ts`.
+
+- **Delete Audit Log Feature (2026-02-24)**:
+  - **Single delete**: `DELETE /fast-integration/audit/:id` — find by ID, delete, return success message.
+  - **Date-range delete**: `DELETE /fast-integration/audit?startDate=&endDate=&status=` — query `dh_ngay` between dates (optionally filtered by `status`), collect IDs, delete in batch. Returns count deleted.
+  - **Key Decision**: Used query params (not request body) for DELETE to avoid Axios/proxy `body-stripping` issues.
+  - **Date field**: Uses `dh_ngay` (order date) — NOT `created_at` — for both list filtering and bulk delete.
+  - **Files Modified**: `fast-integration.service.ts`, `fast-integration.controller.ts`, `lib/api.ts`, `app/fast-po/page.tsx`.
+
+- **Fast PO Audit Log — Status Filter + Delete Modal (2026-02-24)**:
+  - **Status Filter**: Dropdown in filter bar (`SUCCESS` / `ERROR` / Tất cả) — passes `?status=` to `GET /fast-integration/audit`.
+  - **Delete Modal**: "Xoá log theo ngày" button opens modal with date pickers + optional status filter. Calls `DELETE /fast-integration/audit?startDate=&endDate=&status=`.
+  - **Per-row Delete**: "Xoá" button per row with confirm dialog → `DELETE /fast-integration/audit/:id`.
+  - **Result limit**: Increased from 50 to 500 records per query.
+  - **Files Modified**: `app/fast-po/page.tsx`, `lib/api.ts`.
+
+- **Platform-Specific Batch Sync UI (2026-02-24)**:
+  - **Shopee page** (`app/platform-fees/page.tsx`): "Tự động chạy" modal, platform hardcoded to `shopee`. No platform selector.
+  - **TikTok page** (`app/tiktok-fees/page.tsx`): Same modal pattern, platform hardcoded to `tiktok`.
+  - **Modal shows**: date range pickers, result block (success/error with error details), loading spinner.
+  - **API**: `fastApiInvoicesApi.batchSyncPOCharges({ startDate, endDate, platform })` → `POST /fast-integration/po-charges/batch-sync`.
+  - **Files Modified**: `app/platform-fees/page.tsx`, `app/tiktok-fees/page.tsx`, `lib/api.ts`.
+
+- **Sales Date Filter Fix (2026-02-24)**:
+  - **Problem**: `/sales/v2` date filter was not applied when a `search` param was also provided.
+  - **Fix**: Applied date filter regardless of whether `search` is present.
+  - **Files Modified**: `sales-query.service.ts`.
 
 - **Revert maKho Logic for Return Orders (2026-02-11)**:
   - **Problem**: User requested to use standard warehouse mapping (`maKho` derived from `stockCode` via map) instead of overriding with `docCode`.
