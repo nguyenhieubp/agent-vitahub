@@ -2,6 +2,16 @@
 
 ## Milestones
 
+### [Completed] Fix Wholesale Order Discount Mapping (2026-02-25)
+
+- **Goal**: Ensure correct mapping for wholesale orders (`Bán buôn kênh Đại lý`) when syncing to Fast API, specifically fixing `ck01_nt` calculation and allowing `VOUCHER` (`ck05_nt`) payment lines to bypass the `isWholesale` block.
+- **Solutions**:
+  - `InvoiceLogicUtils`: Updated `resolveChietKhauMuaHangGiamGia` to return the original `disc_ctkm` value (properly retaining 0) instead of falling back to `chietKhauMuaHangGiamGia`.
+  - `InvoiceLogicUtils`: Removed `!isWholesale` check inside `calculateInvoiceAmounts` that blocked mapping to `ck05_nt` and `ck06_nt` for wholesale orders, ensuring voucher details are properly assigned.
+  - `SalesFormattingService`: Mirrors the removal of `!isWholesale` constraints for `maCk05`, `ck05Nt`, `maCk06`, and `ck06Nt` formatting to maintain alignment.
+- **Status**: Deployed.
+- **Files Modified**: `invoice-logic.utils.ts`, `sales-formatting.service.ts`.
+
 ### [Completed] Stock Transfer ĐVCS Kho Enrichment (2026-02-25)
 
 - **Goal**: Hiển thị ĐVCS Kho/Kho LQ trên bảng Stock Transfer và phân biệt luồng xử lý khi 2 kho khác ĐVCS.

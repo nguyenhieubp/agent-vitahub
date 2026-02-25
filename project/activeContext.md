@@ -2,15 +2,16 @@
 
 ## Current Focus
 
-Stock Transfer — Thêm cột ĐVCS Kho/Kho LQ và logic backend phân biệt cùng/khác ĐVCS.
-
-- Thêm 2 cột ĐVCS Kho, ĐVCS Kho LQ vào bảng stock transfer (frontend)
-- Backend `getStockTransfers` enrich response với `donViKho` + `donViKhoLQ` từ Loyalty API (`fetchWarehouseDonVi`)
-- `SalesWarehouseService`: khi ĐVCS khác nhau → log WARN + throw 400 Bad Request (không gọi API Fast nào)
-- Khi cùng ĐVCS → chạy luồng điều chuyển kho như cũ (`processWarehouseTransferFromStockTransfers`)
-- Frontend đã xóa `donViCache` / `fetchDonViForCodes` (client-side fetch Loyalty API), giờ dùng data từ backend
+Fixing synchronization data for Wholesale orders (`Bán buôn kênh Đại lý`), specifically ensuring discount arrays and voucher usage map accurately to `ck01_nt` and `ck05_nt` for Fast API processing.
 
 ## Recent Changes
+
+- **Fix Wholesale Order Discount Mapping (2026-02-25)**:
+  - **Goal**: Correct payload data structure pushed to Fast API for Wholesale orders, solving mapping issues with `ck01_nt` and `ck05_nt`.
+  - **Backend**:
+    - `InvoiceLogicUtils.resolveChietKhauMuaHangGiamGia`: Excluded Wholesale from falling back to `chietKhauMuaHangGiamGia` logic, correctly returning `0` when `disc_ctkm = 0`. This resolves `ck01_nt` erroneously showing up as `1.000.000`.
+    - `InvoiceLogicUtils.calculateInvoiceAmounts` & `SalesFormattingService`: Lifted the `!isWholesale` restriction on setting voucher values, enabling valid payment allocations (e.g., `12.300.000` to `ck05_nt`) for Wholesale orders.
+  - **Files Modified**: `invoice-logic.utils.ts`, `sales-formatting.service.ts`.
 
 - **Stock Transfer ĐVCS Enrichment (2026-02-25)**:
   - **Goal**: Hiển thị ĐVCS của mỗi kho trong bảng, phân biệt luồng xử lý khi ĐVCS khác nhau.
