@@ -1,5 +1,61 @@
 # Decision Log
 
+## [2026-02-25] Hardcode ma_cp in fee-config — Eliminate platform_fee_map Dependency
+
+### Context
+
+`handleSyncPOCharges` originally called `getSystemCode()` which did a runtime lookup against `feeMaps` fetched from `platform_fee_map` DB table. This added a DB round-trip at startup and made the mapping fragile (wrong codes if DB is empty/misconfigured).
+
+### Decision
+
+**Hardcode `ma_cp` values directly in `fee-config.ts`** via a `code` field in `FeeMappingRule`. Remove all `feeMaps` state, `fetchFeeMaps`, and `getSystemCode` from both `platform-fee-import/page.tsx` and `platform-fees/page.tsx`.
+
+### Rationale
+
+- Zero DB dependency for core sync logic.
+- `ma_cp` values are fixed per platform/fee type (confirmed from DB: TTPAY5, TTCOM454, TTSFP6, TTAFF for TikTok; SPFIXED, SPSERVICE, SPPAY5, SPAFF, SPSHIPSAVE, SPPISHIP for Shopee).
+- Simpler codebase — one source of truth in `fee-config.ts`.
+
+---
+
+## [2026-02-25] Order-Level Round-Based Stacking for po_charge_history
+
+### Context
+
+`syncPOCharges` stored fees across multiple syncs using cp01→cp06 columns (`po_charge_history`). The original logic: read `item.cp02_nt` from payload as the "value to stack". Problem: frontend always sends `cp02_nt=0`. Fixing per-row slot search still caused inconsistency: dong 4/5/6 (absent from prior sync) would land on cp01 instead of cp02 on the 2nd sync.
+
+### Decision
+
+**Order-level round-based stacking**:
+1. Count ALL audit records (success + fail) for this `dh_so` to determine the current round (0-indexed).
+2. All rows in a sync use the **same target column**: round 0 → `cp01_nt`, round 1 → `cp02_nt`, etc.
+3. New value always read from `item.cp01_nt` in incoming payload.
+
+### Rationale
+
+- Consistent cross-row behavior: all fees from one sync land in the same column.
+- Counts failed attempts too → re-sync progresses to next column, preventing data being silently clobbered.
+- Simple and predictable: column = number of prior syncs for that order.
+
+---
+
+## [2026-02-25] Cascade Delete: Audit Log Removes po_charge_history
+
+### Context
+
+Users wanted to delete an audit log and re-sync an order from scratch (cp01). But even after deleting the audit, `po_charge_history` still retained old values → round count would be wrong on next sync (history still occupies cp01).
+
+### Decision
+
+**Cascade-delete `po_charge_history`** for the matching `dh_so` whenever an audit log is deleted (both single and bulk delete).
+
+### Rationale
+
+- User workflow: Delete audit → Re-push = clean slate from cp01.
+- Keeps `po_charge_history` in sync with `audit_po` — no stale history causing wrong round calculations.
+
+---
+
 ## [2026-02-24] Use Query Params (not Body) for DELETE Requests
 
 ### Context

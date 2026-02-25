@@ -2,6 +2,35 @@
 
 ## Milestones
 
+### [Completed] Stock Transfer ĐVCS Kho Enrichment (2026-02-25)
+
+- **Goal**: Hiển thị ĐVCS Kho/Kho LQ trên bảng Stock Transfer và phân biệt luồng xử lý khi 2 kho khác ĐVCS.
+- **Solutions**:
+  - `LoyaltyService.fetchWarehouseDonVi(maErp)`: gọi `https://loyaltyapi.vmt.vn/warehouse-categories/by-erp/{code}`, trả về `donVi`.
+  - `StockTransferSyncService.getStockTransfers`: sau khi query DB, batch-fetch donVi parallel cho mọi unique `stockCode`/`relatedStockCode`, append `donViKho` và `donViKhoLQ` vào response.
+  - `SalesWarehouseService`: inject `LoyaltyService`, lookup ĐVCS cả 2 kho trước khi xử lý STOCK_TRANSFER:
+    - Khác ĐVCS → log WARN + throw `BadRequestException` (không gọi API Fast).
+    - Cùng ĐVCS (hoặc không tìm thấy) → `processWarehouseTransferFromStockTransfers` như cũ.
+  - `FastApiInvoiceFlowService.processWarehouseIOFromStockTransfer`: thêm sẵn (xuất O + nhập I), chưa dùng.
+  - `CategoriesService.getDonViByErpCode`: fallback query local DB `warehouse_items`.
+  - Frontend `stock-transfer/page.tsx`: xóa `donViCache`, `fetchDonViForCodes`, useEffect Loyalty API. Cells đọc `st.donViKho`/`st.donViKhoLQ` từ backend.
+- **Status**: Deployed.
+- **Files Modified**: `loyalty.service.ts`, `stock-transfer-sync.service.ts`, `sales-warehouse.service.ts`, `categories.service.ts`, `fast-api-invoice-flow.service.ts`, `sales.module.ts`, `app/stock-transfer/page.tsx`.
+
+### [Completed] Platform Fee Import — Hardcode ma_cp & Fix Stacking Logic (2026-02-25)
+
+
+- **Goal**: Eliminate `platform_fee_map` DB dependency; fix `po_charge_history` stacking; correct payload sources.
+- **Solutions**:
+  - Added `code` field to `FeeMappingRule`; hardcoded `ma_cp` for all Shopee (SPFIXED/SPSERVICE/SPPAY5/SPAFF/SPSHIPSAVE/SPPISHIP) and TikTok (TTPAY5/TTCOM454/TTSFP6/TTAFF) rules.
+  - Removed `feeMaps` state, `fetchFeeMaps`, `getSystemCode` from `platform-fee-import/page.tsx` and `platform-fees/page.tsx`. No more DB round-trips for code lookup.
+  - Fixed `platform-fees/page.tsx` sync to use ONLY the 3 fields from `shopee_fee` entity (`commissionFee`, `serviceFee`, `paymentFee`) → preventing stray values (affiliateFee, marketingFee) from contaminating the payload.
+  - Fixed `syncPOCharges` stacking in `fast-integration.service.ts`: now order-level round-based (all rows use same cp column), read from `item.cp01_nt`, round = total audit count for `dh_so`.
+  - Cascade-delete `po_charge_history` when audit logs are deleted (both single + date-range deletes).
+  - Added `syncingId` per-row loading state to all 4 "Đẩy Fast" buttons.
+- **Status**: Deployed.
+- **Files Modified**: `lib/fee-config.ts`, `app/platform-fee-import/page.tsx`, `app/platform-fees/page.tsx`, `fast-integration.service.ts`.
+
 ### [Completed] Duplicate ma_ck11 Logic Fix (2026-02-10)
 
 - **Goal**: Ensure `ma_ck11` only appears on lines that actually used Ecoin payment.

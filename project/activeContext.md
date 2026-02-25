@@ -2,54 +2,62 @@
 
 ## Current Focus
 
-Platform Fee Batch Sync & Fast PO Audit Log Management — Backend endpoints and frontend UI for bulk synchronization and log deletion.
+Stock Transfer — Thêm cột ĐVCS Kho/Kho LQ và logic backend phân biệt cùng/khác ĐVCS.
 
-- Implemented `batchSyncPOCharges` (POST `/fast-integration/po-charges/batch-sync`) for bulk Shopee/TikTok fee sync
-- Implemented `deleteAuditLog` (DELETE `/fast-integration/audit/:id`) and `deleteAuditLogsByDateRange` (DELETE `/fast-integration/audit?startDate=&endDate=&status=`) for audit log management
-- Created `OrderFeeService` to decouple fee fetching logic from controller
-- Added "Tự động chạy" batch sync UI to `platform-fees/page.tsx` (Shopee locked) and `tiktok-fees/page.tsx` (TikTok locked)
-- Added delete-by-date-range modal and status filter to `fast-po/page.tsx`
+- Thêm 2 cột ĐVCS Kho, ĐVCS Kho LQ vào bảng stock transfer (frontend)
+- Backend `getStockTransfers` enrich response với `donViKho` + `donViKhoLQ` từ Loyalty API (`fetchWarehouseDonVi`)
+- `SalesWarehouseService`: khi ĐVCS khác nhau → log WARN + throw 400 Bad Request (không gọi API Fast nào)
+- Khi cùng ĐVCS → chạy luồng điều chuyển kho như cũ (`processWarehouseTransferFromStockTransfers`)
+- Frontend đã xóa `donViCache` / `fetchDonViForCodes` (client-side fetch Loyalty API), giờ dùng data từ backend
 
 ## Recent Changes
 
-- **Batch Sync PO Charges — Backend (2026-02-24)**:
-  - **Endpoint**: `POST /fast-integration/po-charges/batch-sync` accepts `{ startDate, endDate, platform? }`.
-  - **Service**: `FastIntegrationService.batchSyncPOCharges` queries `OrderFeeService` for Shopee/TikTok fees within the date range, then loops and calls `syncPOCharges` for each record.
-  - **Fee Config**: `SHOPEE_FEE_CONFIG` and `TIKTOK_FEE_CONFIG` constants define field → Fast API column mapping (e.g., `commissionFee → cp02_nt`).
-  - **Files Modified**: `fast-integration.service.ts`, `fast-integration.controller.ts`, `fast-integration.module.ts`.
+- **Stock Transfer ĐVCS Enrichment (2026-02-25)**:
+  - **Goal**: Hiển thị ĐVCS của mỗi kho trong bảng, phân biệt luồng xử lý khi ĐVCS khác nhau.
+  - **Backend**:
+    - Thêm `fetchWarehouseDonVi(maErp)` vào `LoyaltyService` (gọi `https://loyaltyapi.vmt.vn/warehouse-categories/by-erp/{code}`)
+    - `StockTransferSyncService.getStockTransfers`: batch fetch `donVi` cho unique `stockCode` + `relatedStockCode`, append `donViKho` / `donViKhoLQ` vào response
+    - `SalesWarehouseService`: inject `LoyaltyService` thay `CategoriesService`; lookup ĐVCS trước khi xử lý; nếu khác → throw `BadRequestException`, nếu cùng → điều chuyển kho bình thường
+    - `CategoriesService`: thêm `getDonViByErpCode` (query local DB `warehouse_items` — dùng làm fallback nếu cần sau này)
+    - `FastApiInvoiceFlowService`: thêm `processWarehouseIOFromStockTransfer` (xuất O + nhập I — chưa dùng, để sẵn cho tương lai)
+  - **Frontend** (`app/stock-transfer/page.tsx`):
+    - Xóa `donViCache` state, `fetchDonViForCodes` function, useEffect gọi Loyalty API trực tiếp
+    - Table cells ĐVCS Kho/LQ đọc từ `st.donViKho` và `st.donViKhoLQ` (do backend trả)
+  - **Files Modified**: `loyalty.service.ts`, `stock-transfer-sync.service.ts`, `sales-warehouse.service.ts`, `categories.service.ts`, `fast-api-invoice-flow.service.ts`, `sales.module.ts`, `app/stock-transfer/page.tsx`.
 
-- **OrderFeeService Extraction (2026-02-24)**:
-  - **Goal**: Decouple Shopee/TikTok fee data fetching from `OrderFeeController` for reuse by `FastIntegrationService`.
-  - **`findShopeeFees`**: Queries `ShopeeFee`, merges with `PlatformFeeImportShopee` (for `shippingFeeSaver`, `marketingFee`, `affiliateFee`), and enriches with `invoiceDate` from `Sale`.
-  - **`findTikTokFees`**: Queries TikTok fee table, merges with `PlatformFeeImportTiktok`.
-  - **Module**: `OrderFeeModule` exports `OrderFeeService`; `FastIntegrationModule` imports `OrderFeeModule`.
-  - **Files Created**: `order-fee.service.ts`, updated `order-fee.module.ts`.
+  - **Goal**: Eliminate dependency on `platform_fee_map` DB table for `ma_cp` lookup.
+  - **Shopee**: `SPFIXED`, `SPSERVICE`, `SPPAY5`, `SPAFF`, `SPSHIPSAVE`, `SPPISHIP`.
+  - **TikTok**: `TTPAY5` (phiGiaoDich), `TTCOM454` (phiHoaHongTiktok), `TTSFP6` (phiDichVuSfp), `TTAFF` (phiAff).
+  - `code` field added to `FeeMappingRule` interface in `lib/fee-config.ts`.
+  - Removed `feeMaps` state, `fetchFeeMaps` useEffect, `getSystemCode` from both `platform-fee-import/page.tsx` and `platform-fees/page.tsx`.
+  - **Files Modified**: `lib/fee-config.ts`, `app/platform-fee-import/page.tsx`, `app/platform-fees/page.tsx`.
 
-- **Delete Audit Log Feature (2026-02-24)**:
-  - **Single delete**: `DELETE /fast-integration/audit/:id` — find by ID, delete, return success message.
-  - **Date-range delete**: `DELETE /fast-integration/audit?startDate=&endDate=&status=` — query `dh_ngay` between dates (optionally filtered by `status`), collect IDs, delete in batch. Returns count deleted.
-  - **Key Decision**: Used query params (not request body) for DELETE to avoid Axios/proxy `body-stripping` issues.
-  - **Date field**: Uses `dh_ngay` (order date) — NOT `created_at` — for both list filtering and bulk delete.
-  - **Files Modified**: `fast-integration.service.ts`, `fast-integration.controller.ts`, `lib/api.ts`, `app/fast-po/page.tsx`.
+- **Fix Shopee Fees Sync to use shopee_fee entity only (2026-02-25)**:
+  - **Problem**: `handleSyncPOCharges` in `platform-fees/page.tsx` used `SHOPEE_FEE_CONFIG` (6 rules) which accidentally read `affiliateFee` and `marketingFee` from items, resulting in unexpected values (444, 666) in payload.
+  - **Fix**: Replaced loop with hardcoded 3-row builder reading only `commissionFee → SPFIXED`, `serviceFee → SPSERVICE`, `paymentFee → SPPAY5` from `shopee_fee` entity.
+  - **Files Modified**: `app/platform-fees/page.tsx`.
 
-- **Fast PO Audit Log — Status Filter + Delete Modal (2026-02-24)**:
-  - **Status Filter**: Dropdown in filter bar (`SUCCESS` / `ERROR` / Tất cả) — passes `?status=` to `GET /fast-integration/audit`.
-  - **Delete Modal**: "Xoá log theo ngày" button opens modal with date pickers + optional status filter. Calls `DELETE /fast-integration/audit?startDate=&endDate=&status=`.
-  - **Per-row Delete**: "Xoá" button per row with confirm dialog → `DELETE /fast-integration/audit/:id`.
-  - **Result limit**: Increased from 50 to 500 records per query.
-  - **Files Modified**: `app/fast-po/page.tsx`, `lib/api.ts`.
+- **Fix syncPOCharges Stacking Logic (2026-02-25)**:
+  - **Problem 1**: Backend service was reading `item.cp02_nt` as the "new value to stack", but frontend always sends `cp02_nt=0` → stacking never worked.
+  - **Problem 2**: Per-row stacking (each row finds its own first empty slot) → dong 4/5/6 started from cp01 on 2nd sync even though it should be cp02.
+  - **Fix**: Changed to **order-level round-based** stacking:
+    1. Count ALL audit records for this `dh_so` (regardless of status) → determines the round.
+    2. All rows in a sync use the same target column: round 0 → cp01, round 1 → cp02, etc.
+    3. Read new value from `item.cp01_nt` (not `item.cp02_nt`).
+  - **Files Modified**: `fast-integration.service.ts`.
 
-- **Platform-Specific Batch Sync UI (2026-02-24)**:
-  - **Shopee page** (`app/platform-fees/page.tsx`): "Tự động chạy" modal, platform hardcoded to `shopee`. No platform selector.
-  - **TikTok page** (`app/tiktok-fees/page.tsx`): Same modal pattern, platform hardcoded to `tiktok`.
-  - **Modal shows**: date range pickers, result block (success/error with error details), loading spinner.
-  - **API**: `fastApiInvoicesApi.batchSyncPOCharges({ startDate, endDate, platform })` → `POST /fast-integration/po-charges/batch-sync`.
-  - **Files Modified**: `app/platform-fees/page.tsx`, `app/tiktok-fees/page.tsx`, `lib/api.ts`.
+- **Cascade Delete: Audit Log → po_charge_history (2026-02-25)**:
+  - **Goal**: When user deletes an audit log from fast-po page, also delete corresponding `po_charge_history` rows for the same `dh_so`, so re-sync starts fresh from cp01.
+  - **Single delete** (`deleteAuditLog`): deletes history for `audit.dh_so` before deleting audit.
+  - **Bulk delete** (`deleteAuditLogsByDateRange`): collects all unique `dh_so` values from matched logs, deletes their history, then deletes audits.
+  - **Files Modified**: `fast-integration.service.ts`.
 
-- **Sales Date Filter Fix (2026-02-24)**:
-  - **Problem**: `/sales/v2` date filter was not applied when a `search` param was also provided.
-  - **Fix**: Applied date filter regardless of whether `search` is present.
-  - **Files Modified**: `sales-query.service.ts`.
+- **Per-row Loading on Đẩy Fast Button (2026-02-25)**:
+  - Added `syncingId` state (tracks which row's id is currently syncing).
+  - Replaced global `setLoading` with `setSyncingId(item.id)` in `handleSyncPOCharges`.
+  - All 4 "Đẩy Fast" buttons (import table, Shopee, Lazada, TikTok) show spinner + "Đang đẩy..." when `syncingId === row.id`.
+  - All other buttons disabled while any row is syncing.
+  - **Files Modified**: `app/platform-fee-import/page.tsx`.
 
 - **Revert maKho Logic for Return Orders (2026-02-11)**:
   - **Problem**: User requested to use standard warehouse mapping (`maKho` derived from `stockCode` via map) instead of overriding with `docCode`.
