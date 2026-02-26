@@ -2,9 +2,30 @@
 
 ## Current Focus
 
-Fixing synchronization data for Wholesale orders (`Bán buôn kênh Đại lý`), specifically ensuring discount arrays and voucher usage map accurately to `ck01_nt` and `ck05_nt` for Fast API processing.
+Cập nhật API POCharges (`/Fast/POCharges`) theo spec mới: thêm `ngay_phi1–6` vào master và cập nhật logic lưu ngày theo `dong`.
 
 ## Recent Changes
+
+- **POCharges API: Thêm ngay_phi1–6 theo spec mới (2026-02-26)**:
+  - **API Spec mới**: Fast API yêu cầu thêm `ngay_phi1–ngay_phi6` vào phần `master` của payload.
+  - **Nghiệp vụ ngay_phi**: `ngay_phiN` ứng với **`dong=N`** (không phải lần sync). Khi push 3 dòng (dong 1, 2, 3) → `ngay_phi1/2/3` đều nhận ngày đẩy hiện tại.
+  - **Ý nghĩa các cột** (theo spec Fast API):
+    - `cp01_nt` = Chi phí **tạm tính**
+    - `cp02_nt` = Chi phí chính thức 1
+    - `cp03_nt` = Chi phí chính thức 2
+    - `cp04_nt` = Chi phí chính thức 3
+    - `cp05_nt` = Chi phí chính thức 4
+    - `cp06_nt` = Chi phí chính thức 5
+    - `ngay_phiN` = Ngày đẩy của dòng có `dong=N`
+  - **Backend — Entity `POChargeHistory`**: Thêm 6 cột `ngay_phi1–ngay_phi6` (timestamp, nullable).
+  - **Backend — `syncPOCharges`**:
+    - Type `master` thêm `ngay_phi1?–ngay_phi6?` (optional string).
+    - Logic: `dongIndex = item.dong` → `ngay_phi{dongIndex} = ngayFromMaster ?? new Date()`.
+    - Fallback: nếu caller không truyền `ngay_phiN`, tự dùng `new Date()` (ngày hiện tại).
+    - `mergedPayload.master`: build `ngay_phi1–6` từ history, lookup `historyByDong.get(N)?.ngay_phiN`.
+  - **Backend — `batchSyncPOCharges`**: Truyền ngày đơn hàng (`orderDate`) vào cả 6 `ngay_phi` slots; service tự chọn đúng slot theo `dong`.
+  - **Frontend**: Không cần thay đổi — backend tự fallback `new Date()` khi không truyền `ngay_phi`.
+  - **Files Modified**: `fast-integration.service.ts`, `entities/po-charge-history.entity.ts`.
 
 - **Fix Wholesale Order Discount Mapping (2026-02-25)**:
   - **Goal**: Correct payload data structure pushed to Fast API for Wholesale orders, solving mapping issues with `ck01_nt` and `ck05_nt`.
