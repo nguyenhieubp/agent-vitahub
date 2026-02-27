@@ -2,6 +2,22 @@
 
 ## Milestones
 
+### [Completed] Warehouse Transfer ma_nx Hardcode (2026-02-27)
+
+- **Goal**: Enforce `ma_nx = 1561` for Fast API payloads when creating a warehouse transfer (điều chuyển kho).
+- **Solutions**:
+  - `FastApiInvoiceFlowService`: Updated `processWarehouseTransferFromStockTransfers` to hardcode `ma_nx: '1561'` for each item pushed to `detail` array.
+- **Status**: Deployed.
+- **Files Modified**: `fast-api-invoice-flow.service.ts`.
+
+### [Completed] Purchasing Table Pagination Update (2026-02-27)
+
+- **Goal**: Change the default page size of Purchase Orders and Goods Receipts tables from 20 to 10.
+- **Solutions**:
+  - Updated the initial state of `limit` to `10` in both `orders/page.tsx` and `receipts/page.tsx`.
+- **Status**: Deployed.
+- **Files Modified**: `purchasing/orders/page.tsx`, `purchasing/receipts/page.tsx`.
+
 ### [Completed] Fix Wholesale Order Discount Mapping (2026-02-25)
 
 - **Goal**: Ensure correct mapping for wholesale orders (`Bán buôn kênh Đại lý`) when syncing to Fast API, specifically fixing `ck01_nt` calculation and allowing `VOUCHER` (`ck05_nt`) payment lines to bypass the `isWholesale` block.

@@ -6,6 +6,16 @@ Cập nhật API POCharges (`/Fast/POCharges`) theo spec mới: thêm `ngay_phi1
 
 ## Recent Changes
 
+- **Warehouse Transfer ma_nx Hardcode (2026-02-27)**:
+  - **Goal**: Hardcode `ma_nx` to `1561` for warehouse transfers.
+  - **Backend**: Updated `processWarehouseTransferFromStockTransfers` in `fast-api-invoice-flow.service.ts` to assign `ma_nx: '1561'` in the detail payload for Fast API.
+  - **Files Modified**: `fast-api-invoice-flow.service.ts`.
+
+- **Purchasing Table Pagination Update (2026-02-27)**:
+  - **Goal**: Change the default number of records per page from 20 to 10 for Purchase Orders and Goods Receipts tables.
+  - **Frontend**: Updated the `limit` state initialization in `purchasing/orders/page.tsx` and `purchasing/receipts/page.tsx`. Fixed a typo in the status badge class in `orders/page.tsx`.
+  - **Files Modified**: `purchasing/orders/page.tsx`, `purchasing/receipts/page.tsx`.
+
 - **POCharges API: Thêm ngay_phi1–6 theo spec mới (2026-02-26)**:
   - **API Spec mới**: Fast API yêu cầu thêm `ngay_phi1–ngay_phi6` vào phần `master` của payload.
   - **Nghiệp vụ ngay_phi**: `ngay_phiN` ứng với **`dong=N`** (không phải lần sync). Khi push 3 dòng (dong 1, 2, 3) → `ngay_phi1/2/3` đều nhận ngày đẩy hiện tại.
