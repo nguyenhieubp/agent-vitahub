@@ -6,11 +6,19 @@ Cập nhật API POCharges (`/Fast/POCharges`) theo spec mới: thêm `ngay_phi1
 
 ## Recent Changes
 
-- **Warehouse Transfer ma_nx Hardcode (2026-02-27)**:
-  - **Goal**: Hardcode `ma_nx` to `1561` for warehouse transfers.
-  - **Backend**: Updated `processWarehouseTransferFromStockTransfers` in `fast-api-invoice-flow.service.ts` to assign `ma_nx: '1561'` in the detail payload for Fast API.
+- **Warehouse Statistics Filter Fix (2026-02-28)**:
+  - **Goal**: Change the date filter in "Thống kê Warehouse" (Warehouse Processed) to use the document transaction date (`transDate`) instead of the system processing date (`processedDate`).
+  - **Backend**: Updated `StockTransferSyncService.getWarehouseProcessed` to filter by `wp.transDate` in both the main data query and the statistics aggregation query.
+  - **Frontend**: Explicitly mapped the `dateFrom` and `dateTo` parameters in `warehouseProcessedApi.getAll` to correctly align with backend expectations.
+  - **Files Modified**: `stock-transfer-sync.service.ts`, `lib/api.ts`, `warehouse-statistics/page.tsx`.
+
+- **Warehouse Transfer Payload Update (2026-02-28)**:
+  - **Goal**: Add missing `status: 3` fixed field to the payload sent to Fast API for Warehouse Transfers (Điều chuyển kho).
+  - **Backend**: Updated `processWarehouseTransferFromStockTransfers` in `fast-api-invoice-flow.service.ts` to include `status: 3` in the main payload object.
   - **Files Modified**: `fast-api-invoice-flow.service.ts`.
 
+- **Warehouse Transfer ma_nx Hardcode (2026-02-27)**:
+  - **Goal**: Hardcode `ma_nx` to `1561` for warehouse transfers.
 - **Purchasing Table Pagination Update (2026-02-27)**:
   - **Goal**: Change the default number of records per page from 20 to 10 for Purchase Orders and Goods Receipts tables.
   - **Frontend**: Updated the `limit` state initialization in `purchasing/orders/page.tsx` and `purchasing/receipts/page.tsx`. Fixed a typo in the status badge class in `orders/page.tsx`.

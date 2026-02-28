@@ -2,6 +2,23 @@
 
 ## Milestones
 
+### [Completed] Warehouse Statistics Filter Fix (2026-02-28)
+
+- **Goal**: Change the date filter in "Thống kê Warehouse" (Warehouse Processed) to use the document transaction date (`transDate`) instead of the system processing date (`processedDate`).
+- **Solutions**:
+  - `StockTransferSyncService`: Updated `getWarehouseProcessed` to apply date filters on `wp.transDate` in both the main query and statistics aggregation query.
+  - Frontend: Reverted `transDateFrom`/`transDateTo` query parameters back to `dateFrom`/`dateTo` to match the backend API's expected payload format.
+- **Status**: Deployed.
+- **Files Modified**: `stock-transfer-sync.service.ts`, `lib/api.ts`, `warehouse-statistics/page.tsx`.
+
+### [Completed] Warehouse Transfer Payload Update (2026-02-28)
+
+- **Goal**: Ensure the Fast API payload for Warehouse Transfers (Điều chuyển kho) missing `status: 3` fixed field.
+- **Solutions**:
+  - `FastApiInvoiceFlowService`: Updated `processWarehouseTransferFromStockTransfers` to include `status: 3` inside the main body object for the `submitWarehouseTransfer` payload.
+- **Status**: Deployed.
+- **Files Modified**: `fast-api-invoice-flow.service.ts`.
+
 ### [Completed] Warehouse Transfer ma_nx Hardcode (2026-02-27)
 
 - **Goal**: Enforce `ma_nx = 1561` for Fast API payloads when creating a warehouse transfer (điều chuyển kho).
